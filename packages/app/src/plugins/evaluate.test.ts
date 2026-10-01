@@ -622,6 +622,26 @@ describe("evaluatePluginClientBundle", () => {
     expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main"]);
   });
 
+  it("provides the window's safe-area insets through @getpaseo/plugin/client/react-native", () => {
+    const plugin = evaluatePluginClientBundle(
+      "example",
+      `(function(require) {
+        const { useSafeAreaInsets } = require("@getpaseo/plugin/client/react-native");
+        const module = { exports: {} };
+        module.exports.default = function(plugin) {
+          plugin.addScreen({ id: "viewer", title: "Viewer", Component: function Viewer() {
+            return useSafeAreaInsets();
+          } });
+          return function() {};
+        };
+        return module.exports;
+      })`,
+    );
+
+    const Component = plugin.surfaces[0]?.Component as unknown as () => unknown;
+    expect(Component()).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
+  });
+
   it("keeps shared and client runtime exports separate", () => {
     expect(() =>
       evaluatePluginClientBundle(
