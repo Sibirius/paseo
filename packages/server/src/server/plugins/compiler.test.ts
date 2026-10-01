@@ -504,6 +504,15 @@ export function Surface() {
     expect(clientBundle).toContain('require("react-native-gesture-handler")');
   });
 
+  it("rejects react-native-gesture-handler subpaths, which the host does not provide", async () => {
+    const entries = await createSplitPlugin();
+    await writeFile(
+      entries.client,
+      `import Swipeable from "react-native-gesture-handler/Swipeable"; export default function contribute() { return Swipeable; }`,
+    );
+    await expect(compilePlugin(entries)).rejects.toThrow("react-native-gesture-handler/Swipeable");
+  });
+
   it("lowers async callbacks before Hermes evaluates the client bundle", async () => {
     const entries = await createSplitPlugin();
     await writeFile(

@@ -337,6 +337,9 @@ function runtimeSpecifierError(
       ))
   )
     kind = "client-only";
+  // The app provides only the package root, so a subpath would compile but fail to load.
+  else if (target === "client" && specifier.startsWith("react-native-gesture-handler/"))
+    kind = "Unsupported host";
   return kind
     ? {
         errors: [

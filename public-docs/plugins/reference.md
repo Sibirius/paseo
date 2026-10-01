@@ -1078,7 +1078,8 @@ Showing another toast replaces the currently visible toast. An empty message is 
 ### Gestures
 
 Import gestures from `react-native-gesture-handler`. Paseo supplies the app's instance, so plugin
-gestures coordinate with the app's own taps, scrolling, and sheets.
+gestures coordinate with the app's own taps, scrolling, and sheets. Only the package root is
+supplied: the compiler rejects subpaths such as `react-native-gesture-handler/Swipeable`.
 
 - Call `.runOnJS(true)` on each gesture. Paseo does not supply `react-native-reanimated`, and plugin
   bundles are not compiled with its worklet transform, so callbacks run on the JavaScript thread.
