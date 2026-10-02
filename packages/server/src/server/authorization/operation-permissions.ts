@@ -409,6 +409,7 @@ const OUTBOUND_PERMISSION = {
   subscribe_terminal_response: "workspace.read",
   "terminal.rename.response": "workspace.write",
   terminal_attention_required: "workspace.read",
+  plugin_attention_required: "workspace.read",
   terminal_stream_exit: "workspace.read",
   terminals_changed: "workspace.read",
   transcription_result: "workspace.write",

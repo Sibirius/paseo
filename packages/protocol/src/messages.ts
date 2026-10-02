@@ -3117,6 +3117,7 @@ export const SessionEventSubscriptionSchema = z.enum([
   "workspace_setup_progress",
   "agent.provider_subagents.update",
   "terminal_attention_required",
+  "plugin_attention_required",
   "status.server_info",
   "status.daemon_config_changed",
   "status.plugin_catalog_changed",
@@ -3600,6 +3601,8 @@ export const ServerInfoStatusPayloadSchema = z
         pluginThemes: z.boolean().optional(),
         pluginSettings: z.boolean().optional(),
         pluginTimelineItems: z.boolean().optional(),
+        // COMPAT(pluginNotifications): added in v0.11.0, remove gate after 2027-04-02.
+        pluginNotifications: z.boolean().optional(),
         // COMPAT(skillManagement): added in v0.4.0, remove gate after 2027-08-16.
         skillManagement: z.boolean().optional(),
         // COMPAT(terminalRestoreModes): added in v0.1.81, remove gate after 2026-11-23.
@@ -6453,6 +6456,24 @@ export const TerminalAttentionRequiredSchema = z.object({
   }),
 });
 
+export const PluginAttentionRequiredSchema = z.object({
+  type: z.literal("plugin_attention_required"),
+  payload: z.object({
+    subscriptionId: z.string().optional(),
+    serverId: z.string(),
+    pluginId: z.string(),
+    title: z.string(),
+    body: z.string(),
+    screen: z
+      .object({
+        screenId: z.string(),
+        params: z.record(z.string(), z.string()).optional(),
+      })
+      .optional(),
+    shouldNotify: z.boolean(),
+  }),
+});
+
 export const DaemonUpdateResponseSchema = z.object({
   type: z.literal("daemon.update.response"),
   payload: z.object({
@@ -6979,6 +7000,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   CaptureTerminalResponseSchema,
   TerminalStreamExitSchema,
   TerminalAttentionRequiredSchema,
+  PluginAttentionRequiredSchema,
   ChatCreateResponseSchema,
   ChatListResponseSchema,
   ChatInspectResponseSchema,

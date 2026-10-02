@@ -53,6 +53,7 @@ import type {
 } from "./workspace-git-service.js";
 import type { GitCommandRuntimeMetricsSnapshot } from "../utils/git-command-runtime-metrics.js";
 import { snapshotGitCommandRuntimeMetrics } from "../utils/run-git-command.js";
+import type { PluginNotification } from "@getpaseo/plugin/server";
 import { createPluginClientId, isPluginClientId } from "./plugins/plugin-session-identity.js";
 import type { WorkspaceAutoName } from "./workspace-auto-name.js";
 import { deriveProjectSlug } from "./workspace-git-metadata.js";
@@ -583,6 +584,7 @@ export class VoiceAssistantWebSocketServer {
   private eventLoopDelayMonitor: ReturnType<typeof monitorEventLoopDelay> | null = null;
   private unsubscribeSpeechReadiness: (() => void) | null = null;
   private unsubscribeDaemonConfigChange: (() => void) | null = null;
+  private unsubscribePluginNotifications: (() => void) | null = null;
   private unsubscribeTerminalActivity: (() => void) | null = null;
   private readonly browserToolsBroker: BrowserToolsBroker | null;
   private readonly hubRelationships: HubRelationshipManagement | null;
@@ -751,6 +753,8 @@ export class VoiceAssistantWebSocketServer {
         this.logger.warn({ err, agentId: params.agentId }, "Failed to broadcast agent attention");
       });
     });
+
+    this.unsubscribePluginNotifications = this.subscribePluginNotifications();
 
     this.wss = this.createWebSocketServer(server, wsConfig, auth);
     this.startRuntimeMetricsInterval();
@@ -1058,6 +1062,8 @@ export class VoiceAssistantWebSocketServer {
     this.unsubscribeSpeechReadiness = null;
     this.unsubscribeDaemonConfigChange?.();
     this.unsubscribeDaemonConfigChange = null;
+    this.unsubscribePluginNotifications?.();
+    this.unsubscribePluginNotifications = null;
     this.unsubscribeTerminalActivity?.();
     this.unsubscribeTerminalActivity = null;
     if (this.runtimeMetricsInterval) {
@@ -1834,6 +1840,8 @@ export class VoiceAssistantWebSocketServer {
         pluginThemes: true,
         pluginSettings: true,
         pluginTimelineItems: true,
+        // COMPAT(pluginNotifications): added in v0.11.0, remove gate after 2027-04-02.
+        pluginNotifications: true,
         // COMPAT(skillManagement): added in v0.4.0, remove gate after 2027-08-16.
         skillManagement: true,
         // COMPAT(terminalRestoreModes): added in v0.1.81, remove gate after 2026-11-23.
@@ -2741,6 +2749,77 @@ export class VoiceAssistantWebSocketServer {
           reason: params.reason,
           title,
           body,
+          shouldNotify,
+        },
+      });
+      if (message.type === "session" && this.sessions.get(ws)?.session.delivery.isModern(ws))
+        this.sessions.get(ws)!.session.publishToSource(ws, message.message);
+      else this.sendToClient(ws, message);
+    }
+  }
+
+  private subscribePluginNotifications(): (() => void) | null {
+    return (
+      this.pluginRuntime?.subscribeNotifications?.((pluginId, notification) =>
+        this.broadcastPluginAttention(pluginId, notification),
+      ) ?? null
+    );
+  }
+
+  private broadcastPluginAttention(pluginId: string, notification: PluginNotification): void {
+    const clientEntries: Array<{
+      ws: WebSocketLike;
+      state: ClientPresenceState;
+    }> = [];
+
+    for (const [ws, connection] of this.sessions) {
+      if (!connection.session.wantsSourceEvent(ws, "plugin_attention_required")) continue;
+      clientEntries.push({
+        ws,
+        state: this.getClientActivityState(connection.session, ws),
+      });
+    }
+
+    const notificationEntries = clientEntries.filter(({ ws }) =>
+      this.sessions.get(ws)?.session.wantsSourceNotification(ws, "plugin_attention_required"),
+    );
+    const plan = computeNotificationPlan({
+      allStates: notificationEntries.map((entry) => entry.state),
+      focusTarget: null,
+      pushEligible: true,
+      nowMs: Date.now(),
+    });
+    const screen = notification.screen;
+
+    if (plan.shouldPush) {
+      void this.pushNotificationSender
+        .send({
+          title: notification.title,
+          body: notification.body,
+          data: {
+            serverId: this.serverId,
+            pluginId,
+            ...(screen ? { pluginScreenId: screen.screenId } : {}),
+            ...(screen?.params ? { pluginScreenParams: screen.params } : {}),
+          },
+        })
+        .catch((err) => {
+          this.logger.warn({ err, pluginId }, "Failed to send push notification");
+        });
+    }
+
+    for (const { ws } of clientEntries) {
+      const shouldNotify =
+        plan.inAppRecipientIndex !== null &&
+        notificationEntries[plan.inAppRecipientIndex]?.ws === ws;
+      const message = wrapSessionMessage({
+        type: "plugin_attention_required",
+        payload: {
+          serverId: this.serverId,
+          pluginId,
+          title: notification.title,
+          body: notification.body,
+          ...(screen ? { screen } : {}),
           shouldNotify,
         },
       });

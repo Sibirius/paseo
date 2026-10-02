@@ -38,6 +38,7 @@ import {
 } from "@/stores/session-store";
 import { useWorkspaceSetupStore } from "@/stores/workspace-setup-store";
 import { sendOsNotification } from "@/utils/os-notifications";
+import { useHostFeature } from "@/runtime/host-features";
 import { getIsAppActivelyVisible, getIsAppVisible } from "@/utils/app-visibility";
 import {
   getInitKey,
@@ -733,6 +734,38 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     voiceRuntime,
     voiceAudioEngine,
   ]);
+
+  const supportsPluginNotifications = useHostFeature(serverId, "pluginNotifications");
+  useEffect(() => {
+    // COMPAT(pluginNotifications): added in v0.11.0, remove gate after 2027-04-02.
+    if (!supportsPluginNotifications) return;
+    const observation = client.observeEvents(["plugin_attention_required"], {
+      notifications: true,
+    });
+    const unsubscribe = observation.subscribe({
+      snapshot: () => {},
+      update: (message) => {
+        if (message.type !== "plugin_attention_required" || !message.payload.shouldNotify) return;
+        const { pluginId, title, body, screen } = message.payload;
+        void sendOsNotification({
+          title,
+          body,
+          data: {
+            serverId: message.payload.serverId,
+            pluginId,
+            ...(screen ? { pluginScreenId: screen.screenId } : {}),
+            ...(screen?.params ? { pluginScreenParams: screen.params } : {}),
+          },
+        });
+      },
+    });
+    return () => {
+      unsubscribe();
+      void observation
+        .release()
+        .catch((error) => console.warn("[Session] Failed to release plugin notifications", error));
+    };
+  }, [client, serverId, supportsPluginNotifications]);
 
   const _cancelAgentRun = useCallback(
     (agentId: string) => {

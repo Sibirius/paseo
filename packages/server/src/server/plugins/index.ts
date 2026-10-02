@@ -2,6 +2,7 @@ import type { PluginLifecycle } from "./lifecycle/index.js";
 import path from "node:path";
 import { stat, rm } from "node:fs/promises";
 import type pino from "pino";
+import type { PluginNotification } from "@getpaseo/plugin/server";
 import type { ProviderRegistration } from "@getpaseo/plugin/server/provider";
 import {
   PluginIdSchema,
@@ -87,6 +88,9 @@ export class PluginService {
   private globalStartsBlocked = true;
   private started = false;
   private readonly settingsListeners = new Set<(pluginId: string, settingsId: string) => void>();
+  private readonly notificationListeners = new Set<
+    (pluginId: string, notification: PluginNotification) => void
+  >();
 
   constructor(
     logger: pino.Logger,
@@ -102,6 +106,9 @@ export class PluginService {
         settingsDirectory: dependencies.settingsDirectory,
         onSettingsChanged: (pluginId, settingsId) => {
           for (const listener of this.settingsListeners) listener(pluginId, settingsId);
+        },
+        onNotification: (pluginId, notification) => {
+          for (const listener of this.notificationListeners) listener(pluginId, notification);
         },
       });
     this.managedSources = dependencies.managedSources ?? null;
@@ -129,6 +136,13 @@ export class PluginService {
   subscribeSettings(listener: (pluginId: string, settingsId: string) => void): () => void {
     this.settingsListeners.add(listener);
     return () => this.settingsListeners.delete(listener);
+  }
+
+  subscribeNotifications(
+    listener: (pluginId: string, notification: PluginNotification) => void,
+  ): () => void {
+    this.notificationListeners.add(listener);
+    return () => this.notificationListeners.delete(listener);
   }
 
   subscribe(listener: (pluginId: string) => void): () => void {

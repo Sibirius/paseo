@@ -73,6 +73,23 @@ describe("buildNotificationRoute", () => {
     ).toBe("/h/srv-1/workspace/ws-main?open=terminal%3Aterm-1");
   });
 
+  it("routes to the plugin screen a plugin notification names", () => {
+    expect(
+      buildNotificationRoute({
+        serverId: "srv-1",
+        pluginId: "github-inbox",
+        pluginScreenId: "board",
+        pluginScreenParams: { thread: "getpaseo/paseo#1", ignored: 3 },
+      }),
+    ).toBe("/h/srv-1/plugin/github-inbox/surface/board?param.thread=getpaseo%2Fpaseo%231");
+  });
+
+  it("falls back to host root for a plugin notification without a screen", () => {
+    expect(buildNotificationRoute({ serverId: "srv-1", pluginId: "github-inbox" })).toBe(
+      "/h/srv-1",
+    );
+  });
+
   it("falls back to host root for a terminal without a workspace id", () => {
     expect(
       buildNotificationRoute({

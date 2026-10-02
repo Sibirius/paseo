@@ -635,6 +635,14 @@ on several hosts are not coalesced. The selected snapshot submits as a text atta
 external-resource presentation, so it remains readable if the plugin is removed or an older peer
 drops the optional presentation fields.
 
+## Contribute notifications
+
+`server.notify` posts a `notification` message on the plugin subprocess channel. The runtime stamps
+the plugin ID, and the WebSocket server delivers it like terminal attention: an in-app notification
+for the most recently present client, otherwise an Expo push. Clients subscribe to
+`plugin_attention_required` with notifications on, so older clients never receive it. A tap routes
+to the named plugin screen through `buildNotificationRoute`.
+
 ## Contribute settings
 
 Register ordinary components with `client.addSettingsScreen` and open them with `openSettings`.

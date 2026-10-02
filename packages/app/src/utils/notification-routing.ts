@@ -1,4 +1,5 @@
 import type { Href } from "expo-router";
+import { buildPluginSurfaceRoute } from "@/plugins/routes";
 import { buildHostRootRoute, buildHostWorkspaceOpenRoute } from "@/utils/host-routes";
 
 type NotificationData = Record<string, unknown> | null | undefined;
@@ -27,13 +28,33 @@ export function resolveNotificationTarget(data: NotificationData): {
   };
 }
 
+function readStringRecord(data: NotificationData, key: string): Record<string, string> {
+  const value = data?.[key];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
 export function buildNotificationRoute(data: NotificationData): NotificationRoute {
   const { serverId, agentId, workspaceId, terminalId } = resolveNotificationTarget(data);
+  const pluginId = readNonEmptyString(data, "pluginId");
+  const pluginScreenId = readNonEmptyString(data, "pluginScreenId");
   if (serverId && workspaceId && agentId) {
     return buildHostWorkspaceOpenRoute(serverId, workspaceId, `agent:${agentId}`);
   }
   if (serverId && workspaceId && terminalId) {
     return buildHostWorkspaceOpenRoute(serverId, workspaceId, `terminal:${terminalId}`);
+  }
+  if (serverId && pluginId && pluginScreenId) {
+    return buildPluginSurfaceRoute(
+      serverId,
+      pluginId,
+      { kind: "surface", id: pluginScreenId },
+      readStringRecord(data, "pluginScreenParams"),
+    );
   }
   if (serverId) {
     return buildHostRootRoute(serverId);

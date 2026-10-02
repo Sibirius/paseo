@@ -10,6 +10,7 @@ import {
   ProviderInputSchema,
   ProviderLaunchSchema,
 } from "@getpaseo/plugin/server/provider";
+import type { PluginNotification } from "@getpaseo/plugin/server";
 import { z } from "zod";
 
 export interface PluginProviderMetadata {
@@ -73,6 +74,7 @@ export type PluginProcessRequest =
 
 export type PluginProcessMessage =
   | { type: "settings.changed"; settingsId: string }
+  | { type: "notification"; notification: PluginNotification }
   | { type: "hooks.changed"; hooks: { events: string[]; before: string[] } }
   | {
       type: "ready";
@@ -102,6 +104,20 @@ export type PluginProcessMessage =
   | { type: "provider.closed"; connectionId: string; error?: string }
   | { type: "paseo_frame"; data: string | Uint8Array; isBinary: boolean }
   | { type: "paseo_close" };
+
+export const PluginNotificationSchema: z.ZodType<PluginNotification> = z
+  .object({
+    title: z.string().min(1).max(200),
+    body: z.string().max(1000),
+    screen: z
+      .object({
+        screenId: z.string().min(1),
+        params: z.record(z.string(), z.string()).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 const hooksSchema = z.object({ events: z.array(z.string()), before: z.array(z.string()) }).strict();
 
@@ -236,6 +252,7 @@ export const PluginProcessMessageSchema: z.ZodType<PluginProcessMessage> = z.dis
   "type",
   [
     z.object({ type: z.literal("settings.changed"), settingsId: z.string() }).strict(),
+    z.object({ type: z.literal("notification"), notification: PluginNotificationSchema }).strict(),
     z.object({ type: z.literal("hooks.changed"), hooks: hooksSchema }).strict(),
     z
       .object({

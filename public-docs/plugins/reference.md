@@ -446,6 +446,31 @@ for 0.10 clients and renders problems into its `error` string.
 
 The source icon follows the provider SVG restrictions above.
 
+### Notifications
+
+`server.notify()` tells the user something needs them, through the same delivery as agent
+notifications:
+
+```ts
+server.notify({
+  title: "getpaseo/paseo#5866",
+  body: "A maintainer replied",
+  screen: { screenId: "board", params: { thread: "getpaseo/paseo#5866" } },
+});
+```
+
+| Field    | Type                                                    | Required | Behavior                                            |
+| -------- | ------------------------------------------------------- | -------- | --------------------------------------------------- |
+| `title`  | `string`, 1–200 characters                              | Yes      | Notification title.                                 |
+| `body`   | `string`, at most 1,000 characters                      | Yes      | Notification text.                                  |
+| `screen` | `{ screenId: string; params?: Record<string, string> }` | No       | The plugin screen a tap opens. Otherwise, the host. |
+
+When a client has been active in the last three minutes, the most recent one shows the notification
+as a desktop or browser notification. Otherwise the daemon sends a push notification to the
+registered phones. `notify` throws on an invalid notification and does nothing before the plugin's
+contribution has returned. Clients gate the feature on
+`server_info.features.pluginNotifications`.
+
 ## Entry point and cleanup
 
 Each present entry default-exports one contribution function and returns cleanup. Client entries

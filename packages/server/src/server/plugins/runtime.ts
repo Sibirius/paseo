@@ -3,7 +3,11 @@ import {
   type ProviderStatus,
   type ProviderStatusRequest,
 } from "@getpaseo/plugin/server/provider";
-import type { PluginBeforeRequests, PluginLifecycleEvents } from "@getpaseo/plugin/server";
+import type {
+  PluginBeforeRequests,
+  PluginLifecycleEvents,
+  PluginNotification,
+} from "@getpaseo/plugin/server";
 import { validateBeforeRequest, validateBeforeResult } from "./lifecycle/index.js";
 import { fork } from "node:child_process";
 import { stat } from "node:fs/promises";
@@ -123,6 +127,7 @@ interface RemoteProviderConnection {
 interface PluginRuntimeDependencies {
   settingsDirectory?: string;
   onSettingsChanged?: (pluginId: string, settingsId: string) => void;
+  onNotification?: (pluginId: string, notification: PluginNotification) => void;
   spawnChild?: () => PluginChild;
   sessionHost?: PluginPaseoSessionHost;
 }
@@ -842,6 +847,10 @@ export class PluginRuntime {
     }
     if (message.type === "settings.changed") {
       this.dependencies.onSettingsChanged?.(loaded.id, message.settingsId);
+      return;
+    }
+    if (message.type === "notification") {
+      this.dependencies.onNotification?.(loaded.id, message.notification);
       return;
     }
     if (message.type.startsWith("provider.")) {

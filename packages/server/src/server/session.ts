@@ -508,6 +508,12 @@ export interface SessionOptions {
     removePlugin(pluginId: string): Promise<void>;
     subscribe(listener: (pluginId: string) => void): () => void;
     subscribeSettings?(listener: (pluginId: string, settingsId: string) => void): () => void;
+    subscribeNotifications?(
+      listener: (
+        pluginId: string,
+        notification: import("@getpaseo/plugin/server").PluginNotification,
+      ) => void,
+    ): () => void;
     catalog(): Array<{ id: string; clientBundle: string }>;
     invokePluginRpc(pluginId: string, method: string, input: unknown): Promise<unknown>;
     listUsageReports(options?: {
@@ -8285,7 +8291,8 @@ export class Session {
   ): void {
     if (
       message.type !== "agent_attention_required" &&
-      message.type !== "terminal_attention_required"
+      message.type !== "terminal_attention_required" &&
+      message.type !== "plugin_attention_required"
     ) {
       subscription.owner.emit(message);
       return;
@@ -8294,11 +8301,13 @@ export class Session {
       message.payload.shouldNotify &&
       subscription.notifications &&
       !notified.has(subscription.owner.source);
-    subscription.owner.emit(
-      message.type === "agent_attention_required"
-        ? { ...message, payload: { ...message.payload, shouldNotify } }
-        : { ...message, payload: { ...message.payload, shouldNotify } },
-    );
+    if (message.type === "agent_attention_required") {
+      subscription.owner.emit({ ...message, payload: { ...message.payload, shouldNotify } });
+    } else if (message.type === "terminal_attention_required") {
+      subscription.owner.emit({ ...message, payload: { ...message.payload, shouldNotify } });
+    } else {
+      subscription.owner.emit({ ...message, payload: { ...message.payload, shouldNotify } });
+    }
     if (shouldNotify) notified.add(subscription.owner.source);
   }
 
@@ -8513,6 +8522,7 @@ function sessionEventCategory(message: SessionOutboundMessage): SessionEventSubs
     case "workspace_setup_progress":
     case "agent.provider_subagents.update":
     case "terminal_attention_required":
+    case "plugin_attention_required":
     case "activity_log":
     case "hub.execution.agent.update":
     case "hub.execution.agent.stream":
@@ -8550,6 +8560,8 @@ function legacyWantsEvent(
       return !capabilities.has(CLIENT_CAPS.explicitEventSubscriptions);
     case "agent.provider_subagents.update":
       return capabilities.has(CLIENT_CAPS.providerSubagents);
+    case "plugin_attention_required":
+      return false;
     default:
       return true;
   }

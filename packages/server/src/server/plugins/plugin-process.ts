@@ -1,6 +1,7 @@
 import { PluginHookHandlers } from "./lifecycle/index.js";
 import { evaluateBundle } from "./bundle-evaluator.js";
 import {
+  PluginNotificationSchema,
   PluginProcessRequestSchema,
   type PluginProcessMessage,
   type PluginProcessRequest,
@@ -285,6 +286,8 @@ export function createPluginWorker(options: {
       registerProvider,
       registerUsageSource,
       registerSettings,
+      notify: (notification) =>
+        send({ type: "notification", notification: PluginNotificationSchema.parse(notification) }),
       on: hooks.on,
       before: hooks.before,
     });
