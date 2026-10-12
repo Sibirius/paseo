@@ -161,11 +161,14 @@ export class PluginService {
   }
 
   listUsageReports(options?: ListUsageReportsOptions) {
-    return this.usageSources.listReports(options);
+    return this.usageSources.listReports({
+      ...options,
+      hiddenSourceIds: this.configStore.get().usage?.hiddenSourceIds,
+    });
   }
 
   listLegacyUsage() {
-    return this.usageSources.listLegacyUsage();
+    return this.usageSources.listLegacyUsage(this.configStore.get().usage?.hiddenSourceIds);
   }
 
   subscribeProviderRegistrations(listener: () => void): () => void {

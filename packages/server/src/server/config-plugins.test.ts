@@ -31,4 +31,23 @@ describe("daemon plugin config", () => {
 
     expect(loadConfig(home, { env: {} }).pluginsEnabled).toBe(true);
   });
+
+  test("loads usage source visibility without changing provider configuration", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      usage: { hiddenSourceIds: ["copilot", "creative.credits"] },
+    });
+    expect(loadConfig(home, { env: {} }).usage).toEqual({
+      hiddenSourceIds: ["copilot", "creative.credits"],
+    });
+    expect(loadConfig(home, { env: {} }).pluginsEnabled).toBe(false);
+  });
+
+  test("rejects malformed usage source IDs", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      usage: { hiddenSourceIds: ["copilot:default"] },
+    });
+    expect(() => loadConfig(home, { env: {} })).toThrow();
+  });
 });

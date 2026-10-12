@@ -14,6 +14,48 @@ function source(input: {
   };
 }
 
+test("hidden sources disappear from global, streamed and targeted reports and can be restored", async () => {
+  const registry = new UsageSourceRegistry();
+  const calls: string[] = [];
+  for (const id of ["copilot", "creative.credits"]) {
+    registry.register(
+      source({
+        id,
+        discover: async () => {
+          calls.push(`discover:${id}`);
+          return [{ key: "default", input: {} }];
+        },
+        fetch: async () => {
+          calls.push(`fetch:${id}`);
+          return { status: "available", windows: [] };
+        },
+      }),
+    );
+  }
+  await registry.listReports();
+  calls.length = 0;
+  const streamed: string[] = [];
+  const hiddenSourceIds = ["copilot", "not-installed"];
+  const reports = await registry.listReports({
+    hiddenSourceIds,
+    forceRefresh: true,
+    onReport: (entry) => streamed.push(entry.id),
+  });
+  expect(reports.map((entry) => entry.id)).toEqual(["creative.credits:default"]);
+  expect(streamed).toEqual(["creative.credits:default"]);
+  expect(calls).toEqual(["discover:creative.credits", "fetch:creative.credits"]);
+  expect(await registry.listReports({ hiddenSourceIds, reportIds: ["copilot:default"] })).toEqual(
+    [],
+  );
+  expect(
+    (await registry.listLegacyUsage(hiddenSourceIds)).providers.map((entry) => entry.providerId),
+  ).toEqual(["creative.credits"]);
+  expect((await registry.listReports()).map((entry) => entry.id)).toEqual([
+    "copilot:default",
+    "creative.credits:default",
+  ]);
+});
+
 test("discovery preserves account IDs and updates input after token rotation", async () => {
   const registry = new UsageSourceRegistry();
   let token = "old";
@@ -34,6 +76,24 @@ test("discovery preserves account IDs and updates input after token rotation", a
   const refreshed = await registry.listReports({ forceRefresh: true });
   expect(refreshed.map((entry) => entry.id)).toEqual(["codex:work"]);
   expect(refreshed[0]?.report.windows[0]?.label).toBe("new");
+});
+
+test("hiding a source preserves agent details without leaking that account into the overview", async () => {
+  const registry = new UsageSourceRegistry(Date.now, 300_000, undefined, {
+    hasAgent: () => true,
+    usageSession: () => ({ provider: "codex", env: {}, sessionKey: "launch" }),
+  });
+  registry.register(source({ id: "codex", discover: async () => [{ key: "one", input: {} }] }));
+  const hiddenSourceIds = ["codex"];
+  expect(
+    (await registry.listReports({ hiddenSourceIds, agentId: "working" })).map((r) => r.id),
+  ).toEqual(["codex:one"]);
+  expect(await registry.listReports({ hiddenSourceIds })).toEqual([]);
+  expect(await registry.listReports({ hiddenSourceIds, reportIds: ["codex:one"] })).toEqual([]);
+  expect((await registry.listLegacyUsage(hiddenSourceIds)).providers).toEqual([]);
+  expect(
+    (await registry.listReports({ agentId: "working", hiddenSourceIds })).map((r) => r.id),
+  ).toEqual(["codex:one"]);
 });
 
 test("coalesces per account, caches errors, and refreshes only requested IDs", async () => {

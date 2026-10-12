@@ -36,6 +36,8 @@ export interface AgentUsageLookup {
 }
 
 export interface ListUsageReportsOptions {
+  /** Host overview preference. Agent-scoped usage always remains available. */
+  hiddenSourceIds?: readonly string[];
   forceRefresh?: boolean;
   reportIds?: string[];
   agentId?: string;
@@ -88,6 +90,7 @@ export class UsageSourceRegistry {
     if (options.agentId !== undefined && options.reportIds !== undefined)
       throw new Error("agentId and reportIds cannot be combined");
     this.pruneAgents();
+    const hiddenSourceIds = new Set(options.agentId === undefined ? options.hiddenSourceIds : []);
     let ids: string[];
     let reports = this.known;
     if (options.agentId !== undefined) {
@@ -96,14 +99,14 @@ export class UsageSourceRegistry {
     } else if (options.reportIds !== undefined) {
       ids = options.reportIds;
     } else {
-      this.defaults = await this.discover({ kind: "global" });
+      this.defaults = await this.discover({ kind: "global" }, hiddenSourceIds);
       this.mergeKnown();
       ids = [...this.known.keys()];
     }
     return Promise.all(
       [...new Set(ids)].flatMap((id) => {
         const known = reports.get(id);
-        if (!known) return [];
+        if (!known || hiddenSourceIds.has(known.source.id)) return [];
         return [
           this.fetchId(id, known, options.forceRefresh).then((entry) => {
             options.onReport?.(entry);
@@ -170,10 +173,14 @@ export class UsageSourceRegistry {
     }
   }
 
-  private async discover(scope: UsageScope): Promise<Map<string, KnownReport>> {
+  private async discover(
+    scope: UsageScope,
+    hiddenSourceIds: ReadonlySet<string> = new Set(),
+  ): Promise<Map<string, KnownReport>> {
     const discovered = await Promise.all(
       [...this.sources.values()].map(async (source) => {
         const reports = new Map<string, KnownReport>();
+        if (hiddenSourceIds.has(source.id)) return reports;
         try {
           const accounts = z
             .array(
@@ -209,8 +216,10 @@ export class UsageSourceRegistry {
   }
 
   // COMPAT(providerUsageList): added in v0.1.98, remove after 2027-03-26.
-  async listLegacyUsage(): Promise<{ fetchedAt: string; providers: ProviderUsage[] }> {
-    const reports = await this.listReports();
+  async listLegacyUsage(
+    hiddenSourceIds: readonly string[] = [],
+  ): Promise<{ fetchedAt: string; providers: ProviderUsage[] }> {
+    const reports = await this.listReports({ hiddenSourceIds });
     return {
       fetchedAt: reports.length
         ? reports.reduce(

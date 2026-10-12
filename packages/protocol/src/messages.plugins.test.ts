@@ -2,12 +2,24 @@ import { z } from "zod";
 import { describe, expect, it } from "vitest";
 import {
   MutableDaemonConfigSchema,
+  MutableDaemonConfigPatchSchema,
   SessionInboundMessageSchema,
   SessionOutboundMessageSchema,
   StatusMessageSchema,
 } from "./messages.js";
 
 describe("plugin protocol compatibility", () => {
+  it("accepts usage visibility as an optional config field", () => {
+    const config = { mcp: { injectIntoAgents: false } };
+    expect(MutableDaemonConfigSchema.parse(config).usage).toBeUndefined();
+    const usage = { hiddenSourceIds: ["copilot", "creative.higgsfield"] };
+    expect(MutableDaemonConfigSchema.parse({ ...config, usage }).usage).toEqual(usage);
+    expect(MutableDaemonConfigPatchSchema.parse({ usage })).toEqual({ usage });
+    expect(
+      MutableDaemonConfigPatchSchema.safeParse({ usage: { hiddenSourceIds: ["copilot:default"] } })
+        .success,
+    ).toBe(false);
+  });
   it.each([undefined, { paseo: ">=0.8.0" }])(
     "parses plugin catalogs with requirements %j",
     (requirements) => {

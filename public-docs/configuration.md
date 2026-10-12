@@ -84,6 +84,32 @@ Agent providers, both the first-class ones Paseo ships with and custom entries y
 
 See [Providers](/docs/providers) for the mental model and [Supported providers](/docs/supported-providers) for the full list of agents Paseo can launch. For pointing Claude at Anthropic-compatible endpoints (Z.AI, Alibaba/Qwen), multiple profiles, custom binaries, ACP agents, and the `additionalModels` merge behavior, see [Custom providers](/docs/custom-providers). The full field reference lives on GitHub at [docs/custom-providers.md](https://github.com/getpaseo/paseo/blob/main/docs/custom-providers.md).
 
+## Usage visibility
+
+Hide usage sources from this host's Usage overview and sidebar summary with
+`usage.hiddenSourceIds`. The setting applies to every connected client, including
+existing mobile and desktop apps. It does not disable agent providers, change
+credentials, or hide an active agent's own usage details.
+
+For example, GitHub CLI authentication can make a Copilot usage card appear even
+when you only use GitHub for repository work. Hide it without signing out:
+
+```sh
+paseo daemon config set usage.hiddenSourceIds '["copilot"]'
+```
+
+Use usage source IDs, such as `claude`, `codex`, or a plugin’s registered source ID.
+All accounts of a listed source are hidden. Unknown source IDs are allowed so
+you can configure a source before installing its plugin. Hidden sources are not
+queried for the host overview; agent-scoped requests still work.
+
+Changes reload without restarting the daemon. Refresh Usage in an already open
+client to discard its cached cards. To show all sources again:
+
+```sh
+paseo daemon config unset usage.hiddenSourceIds
+```
+
 ## Worktrees
 
 New worktrees are created under `$PASEO_HOME/worktrees` by default. To place new worktrees somewhere else, set `worktrees.root`:

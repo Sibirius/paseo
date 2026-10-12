@@ -624,6 +624,7 @@ export function resolveConfigFromPersisted(
     terminalProfiles,
     agentProfiles,
     skillSelection: persisted.agents?.skills?.selection,
+    usage: persisted.usage,
     pluginsEnabled: persisted.pluginsEnabled ?? false,
     plugins: persisted.plugins,
     pluginRegistries: persisted.pluginRegistries,

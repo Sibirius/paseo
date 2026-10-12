@@ -2,6 +2,7 @@ import { PluginRegistriesSchema } from "@getpaseo/protocol/plugin-registry";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { UsageConfigSchema } from "@getpaseo/protocol/usage-config";
 
 import {
   AgentProviderRuntimeSettingsMapSchema,
@@ -308,6 +309,7 @@ export const PersistedConfigSchema = z
 
     providers: ProvidersSchema.optional(),
     pluginRegistries: PluginRegistriesSchema.optional(),
+    usage: UsageConfigSchema.strict().optional(),
     pluginsEnabled: z.boolean().optional(),
     plugins: z.record(PluginIdSchema, PluginSourceSchema).optional(),
     worktrees: WorktreesConfigSchema.optional(),

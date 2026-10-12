@@ -538,6 +538,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "hiddenSourceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9._-]*$"
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

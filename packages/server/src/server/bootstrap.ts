@@ -411,6 +411,7 @@ export interface PaseoDaemonConfig {
   terminalProfiles?: TerminalProfile[];
   agentProfiles?: AgentProfile[];
   skillSelection?: AgentSkillSelection;
+  usage?: MutableDaemonConfig["usage"];
   pluginsEnabled?: boolean;
   plugins?: Record<string, PluginSource>;
   pluginRegistries?: PluginRegistries;
@@ -562,6 +563,7 @@ function createInitialMutableDaemonConfig(config: PaseoDaemonConfig): MutableDae
     autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
     enableTerminalAgentHooks: config.enableTerminalAgentHooks ?? false,
     appendSystemPrompt: config.appendSystemPrompt ?? "",
+    usage: config.usage,
     pluginsEnabled: config.pluginsEnabled ?? false,
     plugins: config.plugins ?? {},
     skills: { selection: config.skillSelection },

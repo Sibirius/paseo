@@ -38,6 +38,7 @@ function reloadableConfig(
     app: { baseUrl: "https://app.paseo.sh" },
     pluginsEnabled: persisted.pluginsEnabled ?? false,
     plugins: persisted.plugins ?? {},
+    usage: persisted.usage,
   };
 }
 
@@ -1007,6 +1008,29 @@ describe("DaemonConfigStore reload", () => {
     });
     expect(store.get().pluginsEnabled).toBe(false);
     expect(changes).toEqual([true, false]);
+  });
+
+  test("persists usage visibility and reloads its removal without restarting", () => {
+    const { paseoHome, store, persisted } = createReloadableStore();
+    store.patch({ usage: { hiddenSourceIds: ["copilot", "creative.credits"] } });
+    expect(loadPersistedConfig(paseoHome).usage).toEqual({
+      hiddenSourceIds: ["copilot", "creative.credits"],
+    });
+    expect(store.get().usage).toEqual({ hiddenSourceIds: ["copilot", "creative.credits"] });
+    writeConfig(paseoHome, { ...persisted, usage: { hiddenSourceIds: ["copilot"] } });
+    expect(store.reload()).toEqual({
+      appliedPaths: ["usage.hiddenSourceIds"],
+      restartRequiredPaths: [],
+      overrideControlledPaths: [],
+    });
+    expect(store.get().usage).toEqual({ hiddenSourceIds: ["copilot"] });
+    writeConfig(paseoHome, persisted);
+    expect(store.reload()).toEqual({
+      appliedPaths: ["usage.hiddenSourceIds"],
+      restartRequiredPaths: [],
+      overrideControlledPaths: [],
+    });
+    expect(store.get().usage).toBeUndefined();
   });
 
   test("classifies every leaf when a parent subtree is added", () => {

@@ -29,6 +29,7 @@ interface SupportedMutableConfigPatch {
   terminalProfiles?: MutableDaemonConfig["terminalProfiles"];
   agentProfiles?: MutableDaemonConfig["agentProfiles"];
   skills?: MutableDaemonConfig["skills"];
+  usage?: MutableDaemonConfig["usage"];
   pluginsEnabled?: boolean;
   plugins?: MutableDaemonConfig["plugins"];
 }
@@ -188,6 +189,7 @@ const RELOADABLE_PATHS = [
   "agents.catalogRefreshTimeoutMs",
   "agents.metadataGeneration",
   "agents.skills.selection",
+  "usage.hiddenSourceIds",
   "pluginsEnabled",
 ] as const;
 
@@ -211,6 +213,7 @@ const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["agents.catalogRefreshTimeoutMs", "catalogRefreshTimeoutMs"],
   ["agents.metadataGeneration", "metadataGeneration"],
   ["agents.skills.selection", "skills.selection"],
+  ["usage.hiddenSourceIds", "usage.hiddenSourceIds"],
   ["pluginsEnabled", "pluginsEnabled"],
 ]);
 
@@ -274,6 +277,7 @@ function pickSupportedPatchFields(patch: MutableDaemonConfigPatch): SupportedMut
       : {}),
     ...(patch.terminalProfiles !== undefined ? { terminalProfiles: patch.terminalProfiles } : {}),
     ...(patch.agentProfiles !== undefined ? { agentProfiles: patch.agentProfiles } : {}),
+    ...(patch.usage !== undefined ? { usage: patch.usage } : {}),
     ...(patch.pluginsEnabled !== undefined ? { pluginsEnabled: patch.pluginsEnabled } : {}),
     ...(patch.plugins !== undefined ? { plugins: patch.plugins } : {}),
   };
@@ -586,6 +590,7 @@ function mergeMutablePatchIntoPersistedConfig(params: {
   const agents = mergeMutableAgentPatch(persisted.agents, patch, removeProviders);
   return {
     ...persisted,
+    ...(patch.usage !== undefined ? { usage: patch.usage } : {}),
     ...(patch.pluginsEnabled !== undefined ? { pluginsEnabled: patch.pluginsEnabled } : {}),
     ...(patch.plugins !== undefined ? { plugins: patch.plugins } : {}),
     ...(daemon ? { daemon } : { daemon: undefined }),
