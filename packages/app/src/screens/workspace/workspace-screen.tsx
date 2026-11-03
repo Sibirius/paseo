@@ -59,6 +59,7 @@ import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
 import { getOrCreateClientId } from "@/utils/client-id";
 import { selectIsAgentListOpen, usePanelStore } from "@/stores/panel-store";
+import { resolveCompactWorkspaceBack } from "@/screens/workspace/compact-workspace-back";
 import { toggleDesktopSidebarsWithCheckoutIntent } from "@/utils/desktop-sidebar-toggle";
 import {
   isExplorerSidebarOpen,
@@ -1257,6 +1258,7 @@ function WorkspaceScreenContent({
   });
 
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
+  const showMobileAgentList = usePanelStore((state) => state.showMobileAgentList);
 
   const activeExplorerCheckout = useMemo<ExplorerCheckoutContext | null>(() => {
     if (!normalizedServerId || !workspaceDirectory) {
@@ -1279,20 +1281,28 @@ function WorkspaceScreenContent({
   );
 
   useEffect(() => {
-    // Back dismisses the compact overlay only. On a wide native layout the
-    // explorer is a tab, `showMobileAgent` has no rendered consumer, and
-    // returning true would swallow Back with nothing to show for it.
-    if (!isRouteFocused || isWeb || !isMobile || !isExplorerSidebarShowing) {
+    // Compact native layout only. On a wide native layout the explorer is a tab
+    // and the workspace list is the sidebar, so the mobile panels have no
+    // rendered consumer and Back keeps its default behavior.
+    if (!isRouteFocused || isWeb || !isMobile) {
       return;
     }
 
     const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      showMobileAgent();
-      return true;
+      const next = resolveCompactWorkspaceBack(usePanelStore.getState().mobilePanel.target);
+      if (next === "agent-list") {
+        showMobileAgentList();
+        return true;
+      }
+      if (next === "agent") {
+        showMobileAgent();
+        return true;
+      }
+      return false;
     });
 
     return () => handler.remove();
-  }, [isExplorerSidebarShowing, isMobile, isRouteFocused, showMobileAgent]);
+  }, [isMobile, isRouteFocused, showMobileAgent, showMobileAgentList]);
 
   const workspaceLayout = useWorkspaceLayoutStore((state) =>
     persistenceKey ? (state.layoutByWorkspace[persistenceKey] ?? null) : null,
