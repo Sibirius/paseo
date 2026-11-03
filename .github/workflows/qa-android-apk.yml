@@ -1,0 +1,74 @@
+# Test builds of the Paseo Debug app (sh.paseo.debug) for branches under qa/, built on
+# GitHub's runner instead of EAS: the Hermes step needs more than 6 GB, which EAS's
+# free worker does not have. Signed with the template's debug key; not for release.
+name: QA Android APK
+
+on:
+  push:
+    branches: ["qa/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies from the lockfile
+        run: npm ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "1"
+
+      - name: Build the packages the app bundles
+        working-directory: packages/app
+        run: npm run eas-build-post-install
+
+      - name: Generate the Android project
+        working-directory: packages/app
+        env:
+          APP_VARIANT: development
+          CI: "1"
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build the release APK
+        working-directory: packages/app/android
+        env:
+          APP_VARIANT: development
+          NODE_ENV: production
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
+        run: >-
+          ./gradlew :app:assembleRelease --max-workers=2
+          -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
+          -x lint -x lintVitalAnalyzeRelease -x lintVitalRelease
+          -x generateReleaseLintModel -x generateReleaseLintVitalModel
+
+      - name: Name the APK after the commit
+        run: |
+          mkdir -p out
+          cp packages/app/android/app/build/outputs/apk/release/app-release.apk "out/paseo-debug-${GITHUB_SHA::9}.apk"
+          sha256sum out/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paseo-debug-apk
+          path: out/*.apk
+          retention-days: 14
