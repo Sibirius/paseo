@@ -12,6 +12,8 @@ OFFER="${PAIR_URL#*#}"
 mkdir -p "$OUT"
 
 focus() { adb shell dumpsys window | grep -m1 -E 'mCurrentFocus' | sed 's/^ *//'; }
+# Leaving one app can reveal another one underneath, so checks first confirm which is in front.
+in_front() { focus | grep -q " $1/"; }
 shot() {
   adb exec-out screencap -p >"$OUT/$1.png"
   echo "$1: $(focus)" | tee -a "$OUT/steps.txt"
@@ -138,10 +140,16 @@ walk_back() {
   check "$session" "still in the chat (no workspace list)" wait absent 'id="agent-list-backdrop"' 3000
   shot "$name-4-after-back-from-explorer"
   back
-  check "$session" "workspace list open after Back from the chat" wait 'id="agent-list-backdrop"' 5000
+  if in_front "$pkg"; then
+    check "$session" "workspace list open after Back from the chat" wait 'id="agent-list-backdrop"' 5000
+  else
+    echo "$session check: workspace list open after Back from the chat: no (left the app)" | tee -a "$OUT/steps.txt"
+  fi
   shot "$name-5-after-back-from-chat"
   back
   shot "$name-6-after-third-back"
+  in_front "$pkg" && r=no || r=yes
+  echo "$session check: app left after the last Back: $r" | tee -a "$OUT/steps.txt"
   stop_recording "$name"
   agent-device close --session "$session" >/dev/null 2>&1 || true
 }
