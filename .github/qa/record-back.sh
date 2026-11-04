@@ -6,8 +6,8 @@
 set -uo pipefail
 
 OUT="${OUT:-$PWD/recordings}"
-FLOW="packages/app/e2e/mobile/agent-device/native-compact-workspace-back.android.ad"
-SERVER_ID="$(cat "$PASEO_HOME/server-id")"
+FLOW="${FLOW:-packages/app/e2e/mobile/agent-device/native-compact-workspace-back.android.ad}"
+SERVER_ID="${SERVER_ID:-$(cat "$PASEO_HOME/server-id")}"
 OFFER="${PAIR_URL#*#}"
 mkdir -p "$OUT"
 
