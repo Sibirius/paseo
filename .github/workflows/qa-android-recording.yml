@@ -94,7 +94,7 @@ jobs:
           disk-size: 8G
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
-          script: bash -c 'for f in apks/*.apk; do adb install -r "$f"; done && OUT="$PWD/recordings" bash .github/qa/record-back.sh'
+          script: bash -c 'for f in apks/*.apk; do adb install -r "$f"; done && for p in sh.paseo sh.paseo.debug; do adb shell pm grant $p android.permission.POST_NOTIFICATIONS; done && OUT="$PWD/recordings" bash .github/qa/record-back.sh'
 
       - name: Keep the daemon log
         if: always()

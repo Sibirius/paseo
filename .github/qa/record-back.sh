@@ -17,6 +17,7 @@ shot() {
   echo "$1: $(focus)" | tee -a "$OUT/steps.txt"
 }
 back() { adb shell input keyevent KEYCODE_BACK; sleep 2.5; }
+snap() { agent-device snapshot --session "${1%%-*}" >"$OUT/$1.snapshot.txt" 2>&1 || true; }
 
 start_recording() {
   adb shell rm -f /sdcard/rec.mp4
@@ -47,13 +48,27 @@ open_workspace() {
   fi
   shot "$name-0-connect-prompt"
   agent-device press 'text="Connect"' --session "$name" >/dev/null
-  sleep 15
+  # The host's workspaces arrive after the connection; opening the workspace before
+  # they do leaves the route on "Loading workspace".
+  if ! agent-device wait 'text="Demo"' 60000 --session "$name" >/dev/null; then
+    agent-device press 'id="menu-button"' --session "$name" >/dev/null 2>&1
+    agent-device wait 'text="Demo"' 30000 --session "$name" >/dev/null 2>&1
+  fi
   shot "$name-0-connected"
+  snap "$name-0-connected"
   adb shell am start -W -a android.intent.action.VIEW \
     -d "paseo://h/${SERVER_ID}/workspace/${WORKSPACE_ID}" "$pkg" >/dev/null
-  if ! agent-device wait 'id="workspace-header-menu-trigger"' 60000 --session "$name" >/dev/null; then
-    shot "$name-1-no-workspace"
-    return 1
+  if ! agent-device wait 'id="workspace-header-menu-trigger"' 45000 --session "$name" >/dev/null; then
+    shot "$name-1-link-did-not-open"
+    snap "$name-1-link-did-not-open"
+    agent-device press 'id="menu-button"' --session "$name" >/dev/null 2>&1
+    sleep 2
+    agent-device press 'text="Demo"' --session "$name" >/dev/null 2>&1
+    if ! agent-device wait 'id="workspace-header-menu-trigger"' 45000 --session "$name" >/dev/null; then
+      shot "$name-1-no-workspace"
+      snap "$name-1-no-workspace"
+      return 1
+    fi
   fi
   sleep 3
   shot "$name-1-workspace"
