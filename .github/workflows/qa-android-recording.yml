@@ -1,0 +1,108 @@
+# Records Android Back on an emulator for the upstream v0.12.0 app and the latest Paseo Debug
+# build of qa/android-back-v0.12.0, against a daemon built from this checkout. QA only.
+name: QA Android recording
+
+on:
+  push:
+    branches: ["qa-record/**"]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PASEO_HOME: ${{ github.workspace }}/.qa-home
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies from the lockfile
+        run: npm ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "1"
+
+      - name: Install agent-device (14 days or older, dependencies included)
+        run: npm install -g agent-device@0.21.29 --before=2026-10-21 --no-audit --no-fund
+
+      - name: Build the daemon and CLI
+        run: npm run build:server
+
+      - name: Fetch both apps
+        run: |
+          mkdir -p apks
+          gh release download v0.12.0 --repo getpaseo/paseo --pattern 'paseo-v0.12.0-android.apk' --dir apks
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow qa-android-apk.yml \
+            --branch qa/android-back-v0.12.0 --status success --limit 1 --json databaseId,headSha \
+            --jq '.[0] | "\(.databaseId) \(.headSha)"')
+          echo "Paseo Debug build: run ${run_id% *}, commit ${run_id#* }"
+          gh run download "${run_id% *}" --repo "$GITHUB_REPOSITORY" --name paseo-debug-apk --dir apks
+          ls -la apks
+
+      - name: Start a daemon with a demo workspace
+        run: |
+          mkdir -p "$PASEO_HOME" /tmp/demo
+          cat >"$PASEO_HOME/config.json" <<'EOF'
+          {
+            "version": 1,
+            "daemon": { "listen": "127.0.0.1:6767", "relay": { "enabled": true } },
+            "features": {
+              "dictation": { "enabled": false },
+              "voiceMode": { "enabled": false },
+              "webUi": { "enabled": false }
+            }
+          }
+          EOF
+          git -C /tmp/demo init -q
+          echo "# Demo" >/tmp/demo/README.md
+          git -C /tmp/demo add README.md
+          git -C /tmp/demo -c user.name=qa -c user.email=qa@example.com commit -q -m init
+          nohup packages/cli/bin/paseo daemon run --home "$PASEO_HOME" >"$RUNNER_TEMP/daemon.out" 2>&1 &
+          for i in $(seq 1 60); do
+            packages/cli/bin/paseo workspace ls --host 127.0.0.1:6767 --json >/dev/null 2>&1 && break
+            sleep 2
+          done
+          packages/cli/bin/paseo workspace create --path /tmp/demo --isolation local --title Demo \
+            --host 127.0.0.1:6767 --json >"$RUNNER_TEMP/workspace.json"
+          packages/cli/bin/paseo workspace ls --host 127.0.0.1:6767 --json >"$RUNNER_TEMP/workspaces.json"
+          echo "WORKSPACE_ID=$(node -p 'require(process.argv[1]).find((w) => w.cwd === "/tmp/demo").workspaceId' "$RUNNER_TEMP/workspaces.json")" >>"$GITHUB_ENV"
+          echo "PAIR_URL=$(packages/cli/bin/paseo daemon pair --home "$PASEO_HOME" --json | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).url')" >>"$GITHUB_ENV"
+          cat "$RUNNER_TEMP/workspace.json"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Record on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disk-size: 8G
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          script: bash -c 'for f in apks/*.apk; do adb install -r "$f"; done && OUT="$PWD/recordings" bash .github/qa/record-back.sh'
+
+      - name: Keep the daemon log
+        if: always()
+        run: mkdir -p recordings && cp "$RUNNER_TEMP/daemon.out" recordings/daemon.out || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: back-recordings
+          path: recordings
+          retention-days: 14
