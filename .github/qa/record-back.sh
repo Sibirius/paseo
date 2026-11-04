@@ -19,14 +19,25 @@ shot() {
 back() { adb shell input keyevent KEYCODE_BACK; sleep 2.5; }
 snap() { agent-device snapshot --session "${1%%-*}" >"$OUT/$1.snapshot.txt" 2>&1 || true; }
 
+# RECORDER=emu records through the emulator console (whole screen, from the host);
+# the default is the device's screenrecord.
 start_recording() {
-  adb shell rm -f /sdcard/rec.mp4
-  adb shell screenrecord --bit-rate 6000000 --time-limit 120 /sdcard/rec.mp4 &
-  REC_PID=$!
+  if [ "${RECORDER:-device}" = emu ]; then
+    adb emu screenrecord start --time-limit 120 "$OUT/$1.webm" >/dev/null
+  else
+    adb shell rm -f /sdcard/rec.mp4
+    adb shell screenrecord --bit-rate 6000000 --time-limit 120 /sdcard/rec.mp4 &
+    REC_PID=$!
+  fi
   sleep 2
 }
 stop_recording() {
-  sleep 1
+  sleep 1.5
+  if [ "${RECORDER:-device}" = emu ]; then
+    adb emu screenrecord stop >/dev/null
+    sleep 3
+    return
+  fi
   adb shell pkill -INT screenrecord || true
   wait "$REC_PID" 2>/dev/null || true
   sleep 2
@@ -117,7 +128,7 @@ walk_back() {
   fresh_start "$pkg" "$session"
   shot "$name-2-chat"
   check "$session" "workspace list closed at the start" wait absent 'id="agent-list-backdrop"' 3000
-  start_recording
+  start_recording "$name"
   agent-device press 'id="workspace-explorer-toggle"' --session "$session" >/dev/null
   check "$session" "file explorer open" wait 'id="file-explorer-backdrop"' 10000
   sleep 1
@@ -152,7 +163,7 @@ replay() {
 for app in "sh.paseo before" "sh.paseo.debug after"; do
   set -- $app
   echo "== $2 ($1)"
-  if open_workspace "$1" "$2"; then
+  if [ -n "${SKIP_SETUP:-}" ] || open_workspace "$1" "$2"; then
     agent-device close --session "$2" >/dev/null 2>&1 || true
     walk_back "$1" "$2"
     replay "$1" "$2"
