@@ -33,11 +33,28 @@ stop_recording() {
   adb pull /sdcard/rec.mp4 "$OUT/$1.mp4" >/dev/null
 }
 
+# A slow emulator can show "<app> isn't responding" on first launch; keep waiting.
+dismiss_anr() {
+  local session="$1"
+  for _ in 1 2 3; do
+    if agent-device is visible 'text="Wait"' --session "$session" >/dev/null 2>&1; then
+      echo "$session: app not responding dialog, pressed Wait" | tee -a "$OUT/steps.txt"
+      agent-device press 'text="Wait"' --session "$session" >/dev/null 2>&1
+      sleep 10
+    else
+      return 0
+    fi
+  done
+}
+
 open_workspace() {
   local pkg="$1" name="$2"
   agent-device open "$pkg" --platform android --session "$name" >/dev/null
-  sleep 5
+  sleep 20
+  dismiss_anr "$name"
   adb shell am start -W -a android.intent.action.VIEW -d "paseo://welcome#${OFFER}" "$pkg" >/dev/null
+  sleep 5
+  dismiss_anr "$name"
   if ! agent-device wait 'text="Connect"' 30000 --session "$name" >/dev/null; then
     shot "$name-0-no-connect-prompt-first"
     adb shell am start -W -a android.intent.action.VIEW -d "paseo://welcome" "$pkg" >/dev/null
@@ -89,6 +106,8 @@ fresh_start() {
   adb shell am force-stop "$pkg"
   sleep 2
   agent-device open "$pkg" --platform android --session "$session" >/dev/null
+  sleep 10
+  dismiss_anr "$session"
   agent-device wait 'id="workspace-header-menu-trigger"' 45000 --session "$session" >/dev/null
   agent-device wait stable 1000 15000 --session "$session" >/dev/null 2>&1
 }
