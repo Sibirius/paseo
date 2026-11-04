@@ -37,14 +37,32 @@ open_workspace() {
   agent-device open "$pkg" --platform android --session "$name" >/dev/null
   sleep 5
   adb shell am start -W -a android.intent.action.VIEW -d "paseo://pair#${OFFER}" "$pkg" >/dev/null
-  sleep 20
-  shot "$name-0-paired"
+  if ! agent-device wait 'text="Connect"' 45000 --session "$name" >/dev/null; then
+    shot "$name-0-no-connect-prompt"
+    return 1
+  fi
+  shot "$name-0-connect-prompt"
+  agent-device press 'text="Connect"' --session "$name" >/dev/null
+  sleep 15
+  shot "$name-0-connected"
   adb shell am start -W -a android.intent.action.VIEW \
     -d "paseo://h/${SERVER_ID}/workspace/${WORKSPACE_ID}" "$pkg" >/dev/null
-  agent-device wait 'id="workspace-header-menu-trigger"' 60000 --session "$name" >/dev/null ||
-    echo "$name: workspace header did not appear"
+  if ! agent-device wait 'id="workspace-header-menu-trigger"' 60000 --session "$name" >/dev/null; then
+    shot "$name-1-no-workspace"
+    return 1
+  fi
   sleep 3
   shot "$name-1-workspace"
+}
+
+check() {
+  local name="$1" label="$2"
+  shift 2
+  if agent-device "$@" --session "$name" >/dev/null 2>&1; then
+    echo "$name check: $label: yes" | tee -a "$OUT/steps.txt"
+  else
+    echo "$name check: $label: no" | tee -a "$OUT/steps.txt"
+  fi
 }
 
 walk_back() {
@@ -53,10 +71,13 @@ walk_back() {
   shot "$name-2-chat"
   agent-device press 'id="workspace-explorer-toggle"' --session "$name" >/dev/null
   sleep 2.5
+  check "$name" "file explorer open" wait 'id="file-explorer-backdrop"' 5000
   shot "$name-3-explorer-open"
   back
+  check "$name" "chat showing after Back from the explorer" is visible 'id="workspace-header-menu-trigger"'
   shot "$name-4-after-back-from-explorer"
   back
+  check "$name" "workspace list open after Back from the chat" wait 'id="agent-list-backdrop"' 5000
   shot "$name-5-after-back-from-chat"
   back
   shot "$name-6-after-third-back"
@@ -82,10 +103,13 @@ replay() {
 for app in "sh.paseo before" "sh.paseo.debug after"; do
   set -- $app
   echo "== $2 ($1)"
-  open_workspace "$1" "$2"
-  walk_back "$2"
-  replay "$1" "$2"
+  if open_workspace "$1" "$2"; then
+    walk_back "$2"
+  else
+    echo "$2: could not open the workspace, skipping the walk" | tee -a "$OUT/steps.txt"
+  fi
   agent-device close --session "$2" >/dev/null 2>&1 || true
+  replay "$1" "$2"
   adb shell am force-stop "$1"
 done
 cat "$OUT/steps.txt"
