@@ -36,10 +36,14 @@ open_workspace() {
   local pkg="$1" name="$2"
   agent-device open "$pkg" --platform android --session "$name" >/dev/null
   sleep 5
-  adb shell am start -W -a android.intent.action.VIEW -d "paseo://pair#${OFFER}" "$pkg" >/dev/null
-  if ! agent-device wait 'text="Connect"' 45000 --session "$name" >/dev/null; then
-    shot "$name-0-no-connect-prompt"
-    return 1
+  adb shell am start -W -a android.intent.action.VIEW -d "paseo://welcome#${OFFER}" "$pkg" >/dev/null
+  if ! agent-device wait 'text="Connect"' 30000 --session "$name" >/dev/null; then
+    shot "$name-0-no-connect-prompt-first"
+    adb shell am start -W -a android.intent.action.VIEW -d "paseo://welcome" "$pkg" >/dev/null
+    if ! agent-device wait 'text="Connect"' 30000 --session "$name" >/dev/null; then
+      shot "$name-0-no-connect-prompt"
+      return 1
+    fi
   fi
   shot "$name-0-connect-prompt"
   agent-device press 'text="Connect"' --session "$name" >/dev/null
