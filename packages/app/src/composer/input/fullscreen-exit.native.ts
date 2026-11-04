@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BackHandler } from "react-native";
+import { systemBackPress } from "@/components/ui/isolated-bottom-sheet-modal/back-press";
 
 /** The hardware back button leaves fullscreen instead of the screen. */
 export function useComposerFullscreenExit(
@@ -8,11 +8,10 @@ export function useComposerFullscreenExit(
 ): ((node: unknown) => void) | undefined {
   useEffect(() => {
     if (!active) return;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+    return systemBackPress.subscribe(() => {
       onExit();
       return true;
     });
-    return () => subscription.remove();
   }, [active, onExit]);
   return undefined;
 }
