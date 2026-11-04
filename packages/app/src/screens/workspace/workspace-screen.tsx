@@ -25,7 +25,7 @@ import {
 } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useIsFocused } from "@react-navigation/native";
-import { BackHandler, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, type Href } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -59,7 +59,8 @@ import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
 import { getOrCreateClientId } from "@/utils/client-id";
 import { selectIsAgentListOpen, usePanelStore } from "@/stores/panel-store";
-import { resolveCompactWorkspaceBack } from "@/screens/workspace/compact-workspace-back";
+import { subscribeCompactWorkspaceBack } from "@/screens/workspace/compact-workspace-back";
+import { systemBackPress } from "@/components/ui/isolated-bottom-sheet-modal/back-press";
 import { toggleDesktopSidebarsWithCheckoutIntent } from "@/utils/desktop-sidebar-toggle";
 import {
   isExplorerSidebarOpen,
@@ -1288,20 +1289,10 @@ function WorkspaceScreenContent({
       return;
     }
 
-    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      const next = resolveCompactWorkspaceBack(usePanelStore.getState().mobilePanel.target);
-      if (next === "agent-list") {
-        showMobileAgentList();
-        return true;
-      }
-      if (next === "agent") {
-        showMobileAgent();
-        return true;
-      }
-      return false;
+    return subscribeCompactWorkspaceBack(systemBackPress, {
+      current: () => usePanelStore.getState().mobilePanel.target,
+      show: (panel) => (panel === "agent-list" ? showMobileAgentList() : showMobileAgent()),
     });
-
-    return () => handler.remove();
   }, [isMobile, isRouteFocused, showMobileAgent, showMobileAgentList]);
 
   const workspaceLayout = useWorkspaceLayoutStore((state) =>
