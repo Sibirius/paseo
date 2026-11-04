@@ -84,32 +84,43 @@ check() {
   fi
 }
 
+fresh_start() {
+  local pkg="$1" session="$2"
+  adb shell am force-stop "$pkg"
+  sleep 2
+  agent-device open "$pkg" --platform android --session "$session" >/dev/null
+  agent-device wait 'id="workspace-header-menu-trigger"' 45000 --session "$session" >/dev/null
+  agent-device wait stable 1000 15000 --session "$session" >/dev/null 2>&1
+}
+
 walk_back() {
-  local name="$1"
-  start_recording
+  local pkg="$1" name="$2" session="$2-walk"
+  fresh_start "$pkg" "$session"
   shot "$name-2-chat"
-  agent-device press 'id="workspace-explorer-toggle"' --session "$name" >/dev/null
-  sleep 2.5
-  check "$name" "file explorer open" wait 'id="file-explorer-backdrop"' 5000
+  check "$session" "workspace list closed at the start" wait absent 'id="agent-list-backdrop"' 3000
+  start_recording
+  agent-device press 'id="workspace-explorer-toggle"' --session "$session" >/dev/null
+  check "$session" "file explorer open" wait 'id="file-explorer-backdrop"' 10000
+  sleep 1
   shot "$name-3-explorer-open"
   back
-  check "$name" "chat showing after Back from the explorer" is visible 'id="workspace-header-menu-trigger"'
+  check "$session" "explorer closed after Back" wait absent 'id="file-explorer-backdrop"' 5000
+  check "$session" "still in the chat (no workspace list)" wait absent 'id="agent-list-backdrop"' 3000
   shot "$name-4-after-back-from-explorer"
   back
-  check "$name" "workspace list open after Back from the chat" wait 'id="agent-list-backdrop"' 5000
+  check "$session" "workspace list open after Back from the chat" wait 'id="agent-list-backdrop"' 5000
   shot "$name-5-after-back-from-chat"
   back
   shot "$name-6-after-third-back"
   stop_recording "$name"
+  agent-device close --session "$session" >/dev/null 2>&1 || true
 }
 
 replay() {
   local pkg="$1" name="$2"
   sed "s/^env APP_ID=.*/env APP_ID=${pkg}/" "$FLOW" >"$OUT/$name-flow.ad"
-  adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-  adb shell am start -W -a android.intent.action.VIEW \
-    -d "paseo://h/${SERVER_ID}/workspace/${WORKSPACE_ID}" "$pkg" >/dev/null
-  sleep 5
+  adb shell am force-stop "$pkg"
+  sleep 2
   if agent-device replay "$OUT/$name-flow.ad" --platform android --session "$name-replay" \
     >"$OUT/$name-replay.log" 2>&1; then
     echo "$name replay: PASS" | tee -a "$OUT/steps.txt"
@@ -123,12 +134,13 @@ for app in "sh.paseo before" "sh.paseo.debug after"; do
   set -- $app
   echo "== $2 ($1)"
   if open_workspace "$1" "$2"; then
-    walk_back "$2"
+    agent-device close --session "$2" >/dev/null 2>&1 || true
+    walk_back "$1" "$2"
+    replay "$1" "$2"
   else
-    echo "$2: could not open the workspace, skipping the walk" | tee -a "$OUT/steps.txt"
+    echo "$2: could not open the workspace, skipping" | tee -a "$OUT/steps.txt"
+    agent-device close --session "$2" >/dev/null 2>&1 || true
   fi
-  agent-device close --session "$2" >/dev/null 2>&1 || true
-  replay "$1" "$2"
   adb shell am force-stop "$1"
 done
 cat "$OUT/steps.txt"
